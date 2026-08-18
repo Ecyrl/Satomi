@@ -1,58 +1,53 @@
 # Satomi Ads CRM
 
-信息流广告投放 CRM + 第一方行为监测 MVP。
+信息流广告第一方行为监测 + 线索 CRM V2。
 
 ## 当前能力
 
-- 自动生成匿名 `visitor_id`
-- 读取腾讯广告监测链接中的常见 query 参数并保存归因信息
-- 页面访问、离开、滚动深度、停留时间
-- 微信按钮点击、电话按钮点击、在线咨询、下载等主动事件
-- 表单开始、提交，以及用户主动填写手机号/微信号/预算/需求后的行为评分
-- CRM 客户列表、筛选、客户行为时间轴
-- 高意向 / 潜在 / 低意向分层
-- 按 click_id / adgroup_id 等参数做基础来源归因
-- JSON 导出
-- 独立检测测试页
+- URL 广告归因参数采集：click_id、account_id、campaign_id、adgroup_id、ad_id、creative_id、dynamic_creative_id、site_set_name 等
+- visitor_id 会话识别
+- 页面访问、滚动深度、停留时长、微信按钮、电话按钮、咨询、下载、表单开始/提交等事件
+- 用户主动提交的姓名、手机号、微信号、预算、需求
+- 自动意向评分与高/中/低意向分级
+- Node.js + Express API
+- SQLite 持久化数据库
+- CRM 客户列表、客户行为时间轴、事件查询、来源概览
+- `/api/conversions/callback` 通用转化回调入口
+- `/health` 健康检查接口
 
-## 本版本的重要边界
+## 本地运行
 
-浏览器网页不能合法/可靠地直接读取用户其他 App 的私人数据。因此：
+需要 Node.js 20+。
 
-- 可以记录用户在网页上主动点击“添加微信”“拨打电话”的行为。
-- 可以记录用户主动提交到网页表单中的手机号、微信号、需求等内容。
-- 不能从网页偷偷读取用户真实微信号、通讯录、微信聊天内容。
-- “拨打电话”在纯网页 MVP 中表示用户点击了拨号入口；真实接通/通话时长需要电话平台或呼叫中心接口。
-- 当前数据使用 LocalStorage，仅适合演示和单浏览器测试，不适合生产环境存储真实客户资料。
-
-## 推荐监测链接
-
-```text
-https://你的域名/?click_id=__CLICK_ID__&click_time=__CLICK_TIME__&impression_id=__IMPRESSION_ID__&account_id=__ACCOUNT_ID__&campaign_id=__CAMPAIGN_ID__&adgroup_id=__ADGROUP_ID__&ad_id=__AD_ID__&dynamic_creative_id=__DYNAMIC_CREATIVE_ID__&site_set_name=__SITE_SET_NAME__&page_url=__PAGE_URL__
+```bash
+npm install
+npm start
 ```
 
-腾讯广告实际可用宏请以你的 DataNexus/广告后台当前文档为准，不要把不存在的宏直接投入正式广告。
+打开 `http://localhost:3000`。
 
-## 本地测试
+测试归因参数：
 
-直接用静态服务器打开 `index.html`。也可以把仓库开启 GitHub Pages，然后访问：
+`http://localhost:3000/?click_id=demo123&campaign_id=camp01&adgroup_id=group01&ad_id=ad01`
 
-- `/`：CRM
-- `/index.html?click_id=demo123&adgroup_id=10001&ad_id=20002`：带广告参数的检测页
+## 生产部署
 
-在“检测测试页”点击微信、电话、咨询、下载，并提交一条表单，然后回到“数据总览 / 客户线索 / 行为事件”查看结果。
+GitHub Pages 只能部署静态页面，不能运行 `server.js` 和 SQLite。正式版请部署到支持 Node.js 和持久化磁盘/数据库的服务环境。
 
-## 下一阶段：生产版
+## 数据边界
 
-建议继续增加：
+本项目只采集浏览器主动产生的行为、广告 URL 参数和用户主动提交的表单信息。它不会读取微信 App 私有数据、通讯录、聊天内容，也不会凭空获取真实通话内容。电话按钮只能证明用户点击了拨号动作；如需接通状态/通话时长，需要正规的呼叫中心/电话 API。
 
-1. Node.js/Cloudflare Worker API
-2. PostgreSQL / Supabase 数据库
-3. 服务端事件接收
-4. 腾讯广告转化回传 callback
-5. 登录与 RBAC 权限
-6. 手机号脱敏与加密存储
-7. 客户跟进状态、销售负责人、备注、成交金额
-8. 企业微信/电话系统的官方接口接入
-9. 广告计划/广告组/素材维度的 ROI 看板
-10. 高意向规则可视化配置
+## 腾讯广告回传
+
+腾讯广告具体生产回传字段、签名/鉴权和回调 URL 必须以你实际账户当前的 DataNexus/广告转化接口文档为准。当前项目提供通用 `/api/conversions/callback` 数据入口，不在没有确认字段契约的情况下伪造腾讯 API。
+
+## 下一阶段
+
+1. PostgreSQL/Supabase 正式数据库
+2. 管理员登录与 RBAC
+3. 按实际腾讯账户文档接入生产转化回传
+4. 企业微信/客服系统正规 API 接入
+5. 电话系统接通状态与通话时长接入
+6. 广告计划 → 广告组 → 素材 → 线索 → 成交 → ROI 全链路报表
+7. 手机号脱敏、加密、保留周期和删除机制
