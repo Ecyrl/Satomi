@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const crypto = require('crypto');
 const Database = require('better-sqlite3');
 
 const app = express();
@@ -18,7 +19,7 @@ app.use(express.static(__dirname));
 const now = () => new Date().toISOString();
 const id = prefix => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`;
 
-// SQLite schema: deliberately stores only data the visitor submits or the browser sends for attribution.
+// Stores only first-party attribution, browser events and information voluntarily submitted in the form.
 db.exec(`
 CREATE TABLE IF NOT EXISTS visitors (
   visitor_id TEXT PRIMARY KEY,
@@ -78,34 +79,34 @@ const SCORE = {
 const levelFor = score => score >= 60 ? 'hot' : score >= 30 ? 'warm' : 'cold';
 const json = value => { try { return JSON.parse(value || '{}'); } catch { return {}; } };
 
-const upsertVisitor = db.transaction(v => {
+function upsertVisitor(v) {
   const existing = db.prepare('SELECT visitor_id FROM visitors WHERE visitor_id=?').get(v.visitor_id);
   if (existing) {
     db.prepare(`UPDATE visitors SET last_seen_at=?, first_url=COALESCE(first_url,?), referrer=COALESCE(referrer,?), attribution_json=?, score=?, event_count=? WHERE visitor_id=?`)
-      .run(v.last_seen_at, v.first_url || null, v.referrer || null, JSON.stringify(v.attribution || {}), v.score || 0, v.event_count || 0, v.visitor_id);
+      .run(v.last_seen_at || now(), v.first_url || null, v.referrer || null, JSON.stringify(v.attribution || {}), Number(v.score || 0), Number(v.event_count || 0), v.visitor_id);
   } else {
     db.prepare(`INSERT INTO visitors(visitor_id,first_seen_at,last_seen_at,first_url,referrer,attribution_json,score,event_count) VALUES(?,?,?,?,?,?,?,?)`)
-      .run(v.visitor_id, v.first_seen_at || now(), v.last_seen_at || now(), v.first_url || null, v.referrer || null, JSON.stringify(v.attribution || {}), v.score || 0, v.event_count || 0);
+      .run(v.visitor_id, v.first_seen_at || now(), v.last_seen_at || now(), v.first_url || null, v.referrer || null, JSON.stringify(v.attribution || {}), Number(v.score || 0), Number(v.event_count || 0));
   }
-});
+}
 
 app.post('/api/track', (req, res) => {
   const { visitor, event } = req.body || {};
   if (!visitor?.visitor_id || !event?.type) return res.status(400).json({ error: 'visitor_id and event.type are required' });
   const score = Number.isFinite(event.score) ? event.score : (SCORE[event.type] || 0);
   const timestamp = event.timestamp || now();
-  upsertVisitor({ ...visitor, last_seen_at: timestamp, score: Number(visitor.score || 0), event_count: Number(visitor.event_count || 0) });
+  upsertVisitor({ ...visitor, last_seen_at: timestamp });
   db.prepare(`INSERT OR REPLACE INTO events(event_id,visitor_id,type,score,timestamp,url,referrer,detail_json) VALUES(?,?,?,?,?,?,?,?)`)
     .run(event.event_id || id('e'), visitor.visitor_id, event.type, score, timestamp, event.url || null, event.referrer || null, JSON.stringify(event.detail || {}));
   db.prepare('UPDATE visitors SET last_seen_at=?, score=score+?, event_count=event_count+1 WHERE visitor_id=?').run(timestamp, score, visitor.visitor_id);
-  res.json({ ok: true, event_id: event.event_id, score });
+  res.json({ ok: true, event_id: event.event_id || null, score });
 });
 
 app.post('/api/leads', (req, res) => {
   const { visitor, fields } = req.body || {};
   if (!visitor?.visitor_id || !fields?.phone) return res.status(400).json({ error: 'visitor_id and phone are required' });
   upsertVisitor(visitor);
-  const base = Number(visitor.score || 0) + (fields.phone ? 20 : 0) + (fields.wechat ? 10 : 0) + (fields.budget ? 15 : 0) + (fields.need ? 15 : 0);
+  const base = Number(visitor.score || 0) + 30 + 20 + (fields.wechat ? 10 : 0) + (fields.budget ? 15 : 0) + (fields.need ? 15 : 0);
   const lead = { lead_id: id('l'), visitor_id: visitor.visitor_id, created_at: now(), name: fields.name || '', phone: String(fields.phone).replace(/\s+/g,''), wechat: fields.wechat || '', budget: fields.budget || '', need: fields.need || '', attribution: visitor.attribution || {}, score: base, level: levelFor(base), status: 'new' };
   db.prepare(`INSERT INTO leads(lead_id,visitor_id,created_at,name,phone,wechat,budget,need,attribution_json,score,level,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run(lead.lead_id, lead.visitor_id, lead.created_at, lead.name, lead.phone, lead.wechat, lead.budget, lead.need, JSON.stringify(lead.attribution), lead.score, lead.level, lead.status);
@@ -149,7 +150,7 @@ app.get('/api/events', (req, res) => {
   res.json(db.prepare(sql).all(...params).map(row => ({ ...row, detail: json(row.detail_json) })));
 });
 
-// Generic conversion callback intake. Wire the exact Tencent callback contract here after confirming the production API fields.
+// Generic callback intake. The exact Tencent production contract must be wired after confirming your account's current DataNexus fields/authentication.
 app.post('/api/conversions/callback', (req, res) => {
   const payload = req.body || {};
   const callbackId = id('cb');
@@ -159,6 +160,9 @@ app.post('/api/conversions/callback', (req, res) => {
 });
 
 app.get('/health', (_req,res) => res.json({ ok: true, service: 'satomi-ads-crm', time: now() }));
-app.get('*', (_req,res) => res.sendFile(path.join(__dirname,'index.html')));
+app.use((req,res,next) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api/')) return res.sendFile(path.join(__dirname,'index.html'));
+  next();
+});
 
 app.listen(PORT, () => console.log(`Satomi Ads CRM listening on :${PORT}`));
