@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="信息流广告投放 CRM 与行为监测 MVP" />
+  <title>Satomi Ads CRM</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">S</div>
+        <div>
+          <strong>Satomi Ads CRM</strong>
+          <span>广告获客监测系统</span>
+        </div>
+      </div>
+      <nav>
+        <button class="nav-item active" data-view="dashboard">📊 数据总览</button>
+        <button class="nav-item" data-view="leads">👥 客户线索</button>
+        <button class="nav-item" data-view="events">🧭 行为事件</button>
+        <button class="nav-item" data-view="test">🧪 检测测试页</button>
+        <button class="nav-item" data-view="settings">⚙️ 监测参数</button>
+      </nav>
+      <div class="sidebar-note">
+        <b>MVP 模式</b>
+        <p>数据默认保存在当前浏览器 LocalStorage。部署正式生产环境前，再接数据库/API。</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="pageTitle">数据总览</h1>
+          <p id="pageSubtitle">实时查看广告来源、用户行为和线索意向度</p>
+        </div>
+        <div class="top-actions">
+          <button class="btn secondary" id="exportBtn">导出 JSON</button>
+          <button class="btn danger" id="clearBtn">清空测试数据</button>
+        </div>
+      </header>
+
+      <section class="view active" id="view-dashboard">
+        <div class="kpi-grid">
+          <div class="kpi"><span>访问用户</span><strong id="kpiVisitors">0</strong><em>去重访客</em></div>
+          <div class="kpi"><span>线索数量</span><strong id="kpiLeads">0</strong><em>主动提交信息</em></div>
+          <div class="kpi"><span>高意向</span><strong id="kpiHot">0</strong><em>评分 ≥ 60</em></div>
+          <div class="kpi"><span>表单提交</span><strong id="kpiForms">0</strong><em>RESERVATION / 自定义表单</em></div>
+        </div>
+
+        <div class="two-col">
+          <div class="card">
+            <div class="card-head"><h2>最近高意向客户</h2><button class="text-btn" data-go="leads">查看全部</button></div>
+            <div id="hotLeads" class="list"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>最近行为</h2><button class="text-btn" data-go="events">查看全部</button></div>
+            <div id="recentEvents" class="list"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>广告来源概览</h2><span class="muted">按 click_id / adgroup_id 归因</span></div>
+          <div class="table-wrap"><table><thead><tr><th>来源</th><th>访问</th><th>线索</th><th>高意向</th><th>平均分</th></tr></thead><tbody id="sourceTable"></tbody></table></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-leads">
+        <div class="filter-row">
+          <input id="leadSearch" class="input" placeholder="搜索姓名 / 电话 / 微信 / 需求" />
+          <select id="leadFilter" class="input"><option value="all">全部</option><option value="hot">高意向</option><option value="warm">潜在客户</option><option value="cold">低意向</option></select>
+        </div>
+        <div class="card"><div class="table-wrap"><table><thead><tr><th>客户</th><th>联系方式</th><th>需求</th><th>来源</th><th>评分</th><th>状态</th><th>时间</th></tr></thead><tbody id="leadTable"></tbody></table></div></div>
+        <div class="card" id="leadDetailCard" hidden></div>
+      </section>
+
+      <section class="view" id="view-events">
+        <div class="filter-row"><input id="eventSearch" class="input" placeholder="搜索事件 / visitor_id / click_id" /><select id="eventTypeFilter" class="input"><option value="all">全部事件</option></select></div>
+        <div class="card"><div class="table-wrap"><table><thead><tr><th>时间</th><th>访客</th><th>事件</th><th>页面</th><th>广告归因</th><th>详情</th></tr></thead><tbody id="eventTable"></tbody></table></div></div>
+      </section>
+
+      <section class="view" id="view-test">
+        <div class="card hero-card">
+          <span class="eyebrow">Tracking Playground</span>
+          <h2>这个页面会模拟真实广告落地页</h2>
+          <p>打开本页时，URL 查询参数会自动解析并绑定到 visitor_id。下面每个动作都会写入行为事件，提交表单会自动进入 CRM 并计算意向分数。</p>
+          <div class="demo-grid">
+            <button class="demo-btn" data-track="wechat_click">💬 点击添加微信</button>
+            <button class="demo-btn" data-track="phone_click">📞 点击拨打电话</button>
+            <button class="demo-btn" data-track="consult_click">💡 在线咨询</button>
+            <button class="demo-btn" data-track="download_click">⬇️ 下载资料</button>
+          </div>
+        </div>
+        <div class="two-col">
+          <div class="card">
+            <h2>模拟线索表单</h2>
+            <form id="leadForm" class="form-grid">
+              <label>姓名<input class="input" name="name" required placeholder="例如：王总" /></label>
+              <label>手机号<input class="input" name="phone" required inputmode="tel" placeholder="例如：13800138000" /></label>
+              <label>微信号<input class="input" name="wechat" placeholder="例如：wx_abc123" /></label>
+              <label>预算<select class="input" name="budget"><option value="">请选择</option><option value="1-3万">1-3万</option><option value="3-5万">3-5万</option><option value="5-10万">5-10万</option><option value="10万以上">10万以上</option></select></label>
+              <label class="full">需求<textarea class="input" name="need" rows="4" placeholder="请描述你的项目需求"></textarea></label>
+              <button class="btn primary full" type="submit">提交线索</button>
+            </form>
+          </div>
+          <div class="card">
+            <h2>当前访客信息</h2>
+            <div id="visitorInfo" class="kv-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-settings">
+        <div class="card"><h2>腾讯广告监测参数</h2><p class="muted">这些字段会从落地页 URL 自动读取并保存到访客记录中。MVP 不会伪造平台下发参数。</p><div id="paramGrid" class="param-grid"></div></div>
+        <div class="card"><h2>推荐监测链接模板</h2><pre id="trackingTemplate"></pre><p class="muted">将你的正式域名替换掉示例域名，再在腾讯广告监测链接中配置对应宏。</p></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="tracker.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
