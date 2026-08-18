@@ -1,0 +1,18 @@
+{
+  "name": "satomi-ads-crm",
+  "version": "2.0.0",
+  "private": true,
+  "description": "First-party ad attribution, behavior tracking and lead CRM for information-flow advertising.",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "cors": "^2.8.5",
+    "express": "^5.1.0
